@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>MyTask Space</title>
+  <link rel="stylesheet" href="/static/css/style.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Lato:wght@400;600;700&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet"/>
+</head>
+<body class="theme-white" id="appBody">
+
+  <!-- USER SESSION BAR (top center) -->
+  <div class="session-bar">
+    <span class="session-email">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      {{ email }}
+    </span>
+    <a href="/logout" class="session-logout">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </a>
+  </div>
+
+  <!-- TOP-LEFT TOOLBAR -->
+  <div class="toolbar-left" id="toolbarLeft">
+    <button class="tool-btn" id="btnStickyNote" title="Add Sticky Note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+      Sticky Note
+    </button>
+    <button class="tool-btn" id="btnTodo" title="To-Do List">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><polyline points="3 6 4 7 6 5"/><polyline points="3 12 4 13 6 11"/><polyline points="3 18 4 19 6 17"/></svg>
+      To-Do
+    </button>
+    <button class="tool-btn" id="btnWeekly" title="Weekly Planner">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Weekly Planner
+    </button>
+  </div>
+
+  <!-- TOP-RIGHT 3-DOT MENU -->
+  <div class="toolbar-right">
+    <button class="dots-btn" id="btnDots">&#8942;</button>
+    <div class="dots-menu" id="dotsMenu">
+      <div class="dots-menu-label">Background Theme</div>
+      <button class="theme-option" data-theme="white">⬜ White</button>
+      <button class="theme-option" data-theme="black">⬛ Black</button>
+      <button class="theme-option" data-theme="light-yellow">🟡 Light Yellow</button>
+      <button class="theme-option" data-theme="light-pink">🩷 Light Pink</button>
+      <button class="theme-option" data-theme="light-blue">🩵 Light Blue</button>
+      <button class="theme-option" data-theme="light-green">🟢 Light Green</button>
+    </div>
+  </div>
+
+  <!-- STICKY NOTE ZONES -->
+  <div class="notes-zone notes-left"  id="notesLeft"></div>
+  <div class="notes-zone notes-right" id="notesRight"></div>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <h1 class="timetable-heading" id="ttHeading" contenteditable="true" spellcheck="false">My Daily Timetable</h1>
+    <p  class="timetable-subtext"  id="ttSubtext"  contenteditable="true" spellcheck="false" data-placeholder="Add a subtitle or leave empty…"></p>
+    <div class="table-wrapper">
+      <table id="ttTable">
+        <thead><tr>
+          <th>⏰ Time</th><th>📌 Task</th><th class="col-actions"></th>
+        </tr></thead>
+        <tbody id="ttBody"></tbody>
+      </table>
+      <button class="add-row-btn" id="btnAddRow">＋ Add Row</button>
+    </div>
+  </main>
+
+  <!-- ADD/EDIT ROW MODAL -->
+  <div class="modal-overlay" id="rowModal">
+    <div class="modal-box">
+      <div class="modal-title" id="rowModalTitle">Add Row</div>
+      <label>Start Time</label>
+      <div class="time-input-row">
+        <input type="number" id="rowStartHour" min="1" max="12" placeholder="HH" class="time-part"/>
+        <span class="time-colon">:</span>
+        <input type="number" id="rowStartMin" min="0" max="59" placeholder="MM" class="time-part"/>
+        <div class="ampm-toggle" id="startAmpm">
+          <button class="ampm-btn active" data-val="AM">AM</button>
+          <button class="ampm-btn" data-val="PM">PM</button>
+        </div>
+      </div>
+      <label>End Time <span style="font-weight:400;opacity:.6">(optional)</span></label>
+      <div class="time-input-row">
+        <input type="number" id="rowEndHour" min="1" max="12" placeholder="HH" class="time-part"/>
+        <span class="time-colon">:</span>
+        <input type="number" id="rowEndMin" min="0" max="59" placeholder="MM" class="time-part"/>
+        <div class="ampm-toggle" id="endAmpm">
+          <button class="ampm-btn active" data-val="AM">AM</button>
+          <button class="ampm-btn" data-val="PM">PM</button>
+        </div>
+      </div>
+      <label>Task</label>
+      <input type="text" id="rowTask" placeholder="e.g. Study – Linear Algebra"/>
+      <label>Task Color</label>
+      <div class="color-picker" id="rowColorPicker">
+        <button class="cp-btn" data-color="#1a1a1a" style="background:#1a1a1a" title="Black"></button>
+        <button class="cp-btn" data-color="#1565C0" style="background:#1565C0" title="Blue"></button>
+        <button class="cp-btn" data-color="#C0392B" style="background:#C0392B" title="Red"></button>
+        <button class="cp-btn" data-color="#BF5A1A" style="background:#BF5A1A" title="Orange"></button>
+        <button class="cp-btn" data-color="#9A7200" style="background:#9A7200" title="Yellow"></button>
+        <button class="cp-btn" data-color="#7B5EA7" style="background:#7B5EA7" title="Purple"></button>
+        <button class="cp-btn" data-color="#6D4C41" style="background:#6D4C41" title="Brown"></button>
+        <button class="cp-btn" data-color="#C2185B" style="background:#C2185B" title="Pink"></button>
+        <button class="cp-btn" data-color="#0288D1" style="background:#0288D1" title="Sky Blue"></button>
+        <button class="cp-btn" data-color="#616161" style="background:#616161" title="Gray"></button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="rowModalCancel">Cancel</button>
+        <button class="btn-save"   id="rowModalSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STICKY NOTE MODAL -->
+  <div class="modal-overlay" id="noteModal">
+    <div class="modal-box">
+      <div class="modal-title" id="noteModalTitle">New Sticky Note</div>
+      <label>Note Text</label>
+      <textarea id="noteText" rows="4" placeholder="Write your note…"></textarea>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="noteModalCancel">Cancel</button>
+        <button class="btn-save"   id="noteModalOk">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TO-DO WINDOW -->
+  <div class="todo-window" id="todoWindow">
+    <div class="todo-header">
+      <span class="todo-title">📋 To-Do List</span>
+      <button class="todo-close" id="todoClose">✕</button>
+    </div>
+    <div class="todo-body" id="todoBody"></div>
+    <div class="todo-add-row">
+      <input type="text" id="todoInput" placeholder="New to-do…"/>
+      <button id="todoAddBtn">Add</button>
+    </div>
+    <div class="todo-footer">
+      <button class="btn-cancel" id="todoCancelBtn">Cancel</button>
+      <button class="btn-save"   id="todoSaveBtn">Save</button>
+    </div>
+  </div>
+
+  <!-- WEEKLY PLANNER -->
+  <div class="modal-overlay" id="weeklyModal">
+    <div class="weekly-box">
+      <div class="weekly-header">
+        <span class="weekly-title">📅 Weekly Timetable Planner</span>
+        <button class="weekly-close" id="weeklyClose">✕</button>
+      </div>
+      <div class="weekly-body" id="weeklyBody"></div>
+    </div>
+  </div>
+
+  <!-- WEEKLY ADD/EDIT MODAL -->
+  <div class="modal-overlay" id="wTaskModal">
+    <div class="modal-box">
+      <div class="modal-title" id="wTaskModalTitle">Add Task</div>
+      <input type="hidden" id="wTaskDay"/>
+      <label>Start Time</label>
+      <div class="time-input-row">
+        <input type="number" id="wStartHour" min="1" max="12" placeholder="HH" class="time-part"/>
+        <span class="time-colon">:</span>
+        <input type="number" id="wStartMin"  min="0" max="59" placeholder="MM" class="time-part"/>
+        <div class="ampm-toggle" id="wStartAmpm">
+          <button class="ampm-btn active" data-val="AM">AM</button>
+          <button class="ampm-btn" data-val="PM">PM</button>
+        </div>
+      </div>
+      <label>End Time <span style="font-weight:400;opacity:.6">(optional)</span></label>
+      <div class="time-input-row">
+        <input type="number" id="wEndHour" min="1" max="12" placeholder="HH" class="time-part"/>
+        <span class="time-colon">:</span>
+        <input type="number" id="wEndMin"  min="0" max="59" placeholder="MM" class="time-part"/>
+        <div class="ampm-toggle" id="wEndAmpm">
+          <button class="ampm-btn active" data-val="AM">AM</button>
+          <button class="ampm-btn" data-val="PM">PM</button>
+        </div>
+      </div>
+      <label>Task</label>
+      <input type="text" id="wTaskText" placeholder="e.g. Study – Maths"/>
+      <label>Task Color</label>
+      <div class="color-picker" id="wColorPicker">
+        <button class="cp-btn" data-color="#1a1a1a" style="background:#1a1a1a"></button>
+        <button class="cp-btn" data-color="#1565C0" style="background:#1565C0"></button>
+        <button class="cp-btn" data-color="#C0392B" style="background:#C0392B"></button>
+        <button class="cp-btn" data-color="#BF5A1A" style="background:#BF5A1A"></button>
+        <button class="cp-btn" data-color="#9A7200" style="background:#9A7200"></button>
+        <button class="cp-btn" data-color="#7B5EA7" style="background:#7B5EA7"></button>
+        <button class="cp-btn" data-color="#6D4C41" style="background:#6D4C41"></button>
+        <button class="cp-btn" data-color="#C2185B" style="background:#C2185B"></button>
+        <button class="cp-btn" data-color="#0288D1" style="background:#0288D1"></button>
+        <button class="cp-btn" data-color="#616161" style="background:#616161"></button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="wTaskCancel">Cancel</button>
+        <button class="btn-save"   id="wTaskSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
