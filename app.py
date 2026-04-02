@@ -7,7 +7,7 @@ import secrets
 
 app = Flask(__name__)
 # random key every restart (fine for now)
-app.secret_key = "mytaskspace-secret-key"
+app.secret_key = os.environ.get("SECRET_KEY")
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data.db')
 
