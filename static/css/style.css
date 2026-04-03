@@ -91,7 +91,7 @@ body.theme-light-green {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 100;
+  z-index: 150;
 }
 
 .tool-btn {
@@ -214,7 +214,7 @@ body.theme-light-green {
 /* ── STICKY NOTES ── */
 .notes-zone {
   position: fixed;
-  top: 200px;
+  top: 320px;
   display: flex;
   flex-direction: column;
   gap: 12px;
