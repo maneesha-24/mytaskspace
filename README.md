@@ -64,8 +64,4 @@ mytaskspace/
 - Passwords are hashed using Werkzeug — never stored as plain text
 - All routes are protected with Flask-Login
 - Each user's data is fully isolated
-- `SECRET_KEY` is loaded from environment variables in production
-
----
-📌 Note
-This is a portfolio project. Please do not store sensitive personal information.
+- `SECRET_KEY` is loaded from environment variables in production.
