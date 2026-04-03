@@ -1,8 +1,6 @@
-# ✦ MyTask Space
+✦ MyTask Space
 
-A personal productivity web app where every user gets their own private workspace to plan their day, manage tasks, and stay organised — all in one place.
-
----
+A personal productivity web app where every user gets their own private workspace to plan their day, manage tasks and stay organised — all in one place.
 
 ## ✨ Features
 
@@ -50,26 +48,6 @@ mytaskspace/
 └── app.js
 ---
 
-## ⚙️ Run Locally
-```bash
-git clone https://github.com/YOUR_USERNAME/mytaskspace.git
-cd mytaskspace
-
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# macOS / Linux
-source venv/bin/activate
-
-pip install -r requirements.txt
-python app.py
-```
-
-Open → **http://127.0.0.1:5000**
-
----
 
 ## 🌐 Deploy on Railway
 
@@ -77,7 +55,7 @@ Open → **http://127.0.0.1:5000**
 2. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub
 3. Select your repo — Railway detects the `Procfile` automatically
 4. Add `SECRET_KEY` as an environment variable in the **Variables** tab
-5. Your app is live ✅
+5. App is live.
 
 ---
 
@@ -89,5 +67,6 @@ Open → **http://127.0.0.1:5000**
 - `SECRET_KEY` is loaded from environment variables in production
 
 ---
+y
 📌 Note
 This is a portfolio project. Please do not store sensitive personal information.
