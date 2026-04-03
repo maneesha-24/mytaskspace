@@ -9,7 +9,7 @@
 </head>
 <body class="theme-white" id="appBody">
 
-  <!-- USER SESSION BAR (top center) -->
+  <!-- USER SESSION BAR -->
   <div class="session-bar">
     <span class="session-email">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -20,6 +20,11 @@
       Sign Out
     </a>
   </div>
+
+  <!-- MOBILE TOOLBAR TOGGLE -->
+  <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle toolbar">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
 
   <!-- TOP-LEFT TOOLBAR -->
   <div class="toolbar-left" id="toolbarLeft">
@@ -35,6 +40,14 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       Weekly Planner
     </button>
+    <button class="tool-btn" id="btnDownloadDaily" title="Download Daily Planner as PDF">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Daily PDF
+    </button>
+    <button class="tool-btn" id="btnDownloadWeekly" title="Download Weekly Planner as PDF">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Weekly PDF
+    </button>
   </div>
 
   <!-- TOP-RIGHT 3-DOT MENU -->
@@ -48,6 +61,9 @@
       <button class="theme-option" data-theme="light-pink">🩷 Light Pink</button>
       <button class="theme-option" data-theme="light-blue">🩵 Light Blue</button>
       <button class="theme-option" data-theme="light-green">🟢 Light Green</button>
+      <div class="dots-menu-divider"></div>
+      <div class="dots-menu-label">Account</div>
+      <button class="theme-option danger-option" id="btnDeleteAccount">🗑 Delete Account</button>
     </div>
   </div>
 
@@ -204,6 +220,37 @@
     </div>
   </div>
 
+  <!-- DELETE ACCOUNT MODAL -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal-box">
+      <div class="modal-title" style="color:#C0392B;">⚠️ Delete Account</div>
+      <p style="font-size:13px;color:#666;line-height:1.5;margin-bottom:4px;">
+        This will <strong>permanently delete</strong> your account and all your data.
+        This action <strong>cannot be undone</strong>.
+      </p>
+      <label>Confirm Email</label>
+      <input type="email" id="deleteEmail" placeholder="your@email.com"/>
+      <label>Confirm Password</label>
+      <input type="password" id="deletePassword" placeholder="Enter your password"/>
+      <div id="deleteError" style="font-size:12px;color:#C0392B;min-height:16px;font-weight:600;"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="deleteModalCancel">Cancel</button>
+        <button class="btn-save" id="deleteModalConfirm" style="background:#C0392B;">Delete My Account</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/static/js/app.js"></script>
+  <script>
+    // Mobile toolbar toggle
+    const mBtn = document.getElementById('mobileMenuBtn');
+    const tBar = document.getElementById('toolbarLeft');
+    mBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      tBar.classList.toggle('mobile-open');
+    });
+    document.addEventListener('click', () => tBar.classList.remove('mobile-open'));
+    tBar.addEventListener('click', e => e.stopPropagation());
+  </script>
 </body>
 </html>

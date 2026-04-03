@@ -2,86 +2,90 @@
    TIMETABLE APP — app.js
    Flask + SQLite | All data in data.db
 ═══════════════════════════════════════════════ */
-const $  = id => document.getElementById(id);
-const api = async (url, method='GET', body=null) => {
-  const opts = {method, headers:{'Content-Type':'application/json'}};
+const $ = id => document.getElementById(id);
+const api = async (url, method = 'GET', body = null) => {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   return res.json();
 };
 
 /* ── Time helpers ── */
-// "HH:MM" 24h  →  "H:MM AM/PM"
-function fmt24(t){
-  if(!t) return '';
-  const [h,m] = t.split(':').map(Number);
-  const ap = h<12?'AM':'PM', hh=h%12||12;
-  return `${hh}:${String(m).padStart(2,'0')} ${ap}`;
+function fmt24(t) {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const ap = h < 12 ? 'AM' : 'PM', hh = h % 12 || 12;
+  return `${hh}:${String(m).padStart(2, '0')} ${ap}`;
 }
-// 24h sort key
-function tVal(t){ if(!t) return 0; const [h,m]=t.split(':').map(Number); return h*60+m; }
+function tVal(t) { if (!t) return 0; const [h, m] = t.split(':').map(Number); return h * 60 + m; }
 
-// Read AM/PM custom inputs → "HH:MM" 24h string
-function readAmPmInputs(hourId, minId, ampmId){
-  const h = parseInt($( hourId).value)||0;
-  const m = parseInt($( minId ).value)||0;
+function readAmPmInputs(hourId, minId, ampmId) {
+  const h = parseInt($(hourId).value) || 0;
+  const m = parseInt($(minId).value) || 0;
   const ap = $(ampmId).querySelector('.ampm-btn.active').dataset.val;
   let h24 = h % 12;
-  if(ap==='PM') h24 += 12;
-  return `${String(h24).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  if (ap === 'PM') h24 += 12;
+  return `${String(h24).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-// Write "HH:MM" 24h → AM/PM inputs
-function writeAmPmInputs(t24, hourId, minId, ampmId){
-  if(!t24){ $(hourId).value=''; $(minId).value=''; return; }
-  const [h,m] = t24.split(':').map(Number);
-  const ap = h<12?'AM':'PM', hh=h%12||12;
+function writeAmPmInputs(t24, hourId, minId, ampmId) {
+  if (!t24) { $(hourId).value = ''; $(minId).value = ''; return; }
+  const [h, m] = t24.split(':').map(Number);
+  const ap = h < 12 ? 'AM' : 'PM', hh = h % 12 || 12;
   $(hourId).value = hh;
-  $(minId ).value = String(m).padStart(2,'0');
-  $(ampmId).querySelectorAll('.ampm-btn').forEach(b=>{
-    b.classList.toggle('active', b.dataset.val===ap);
+  $(minId).value = String(m).padStart(2, '0');
+  $(ampmId).querySelectorAll('.ampm-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.val === ap);
   });
 }
 
-function escHtml(s){
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// ── FIX: end time detection — check for non-empty string, not falsy ──
+function hasEndTime(hourId, minId) {
+  return $(hourId).value.trim() !== '' || $(minId).value.trim() !== '';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 /* ── State ── */
-let rows=[], notes=[], todos=[], weeklyTasks=[], settings={};
-let editingRowId=null, editingNoteId=null, editingWTaskId=null;
-let selectedColor='#1a1a1a', selectedWColor='#1a1a1a';
-let todoDraft=[];
+let rows = [], notes = [], todos = [], weeklyTasks = [], settings = {};
+let editingRowId = null, editingNoteId = null, editingWTaskId = null;
+let selectedColor = '#1a1a1a', selectedWColor = '#1a1a1a';
+let todoDraft = [];
 
 /* ══════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════ */
-async function init(){
+async function init() {
   settings = await api('/api/settings');
   applySettings();
-  rows       = await api('/api/rows');    renderTable();
-  notes      = await api('/api/notes');   renderNotes();
-  weeklyTasks= await api('/api/weekly');
-  todos      = await api('/api/todos');
+  rows = await api('/api/rows'); renderTable();
+  notes = await api('/api/notes'); renderNotes();
+  weeklyTasks = await api('/api/weekly');
+  todos = await api('/api/todos');
   bindEvents();
 }
 
-function applySettings(){
-  $('appBody').className = `theme-${settings.bg_theme||'white'}`;
-  if(settings.heading) $('ttHeading').textContent = settings.heading;
-  if(settings.subtext)  $('ttSubtext').textContent  = settings.subtext;
+function applySettings() {
+  $('appBody').className = `theme-${settings.bg_theme || 'white'}`;
+  if (settings.heading) $('ttHeading').textContent = settings.heading;
+  if (settings.subtext) $('ttSubtext').textContent = settings.subtext;
 }
 
 /* ══════════════════════════════════════════════
    TIMETABLE
 ══════════════════════════════════════════════ */
-function renderTable(){
-  const sorted = [...rows].sort((a,b)=>tVal(a.time_start)-tVal(b.time_start));
-  const tb = $('ttBody'); tb.innerHTML='';
-  sorted.forEach(row=>{
-    const ts = row.time_end ? `${fmt24(row.time_start)} – ${fmt24(row.time_end)}` : fmt24(row.time_start);
+function renderTable() {
+  const sorted = [...rows].sort((a, b) => tVal(a.time_start) - tVal(b.time_start));
+  const tb = $('ttBody'); tb.innerHTML = '';
+  sorted.forEach(row => {
+    // Show "From – To" if time_end exists and is non-empty
+    const ts = (row.time_end && row.time_end.trim())
+      ? `${fmt24(row.time_start)} – ${fmt24(row.time_end)}`
+      : fmt24(row.time_start);
     const tr = document.createElement('tr');
-    tr.innerHTML=`
+    tr.innerHTML = `
       <td class="td-time">${escHtml(ts)}</td>
       <td class="td-task" style="color:${row.task_color};border-left-color:${row.task_color}">${escHtml(row.task)}</td>
       <td class="td-actions">
@@ -95,71 +99,72 @@ function renderTable(){
   });
 }
 
-function openAddRowModal(){
-  editingRowId=null; $('rowModalTitle').textContent='Add Row';
-  $('rowStartHour').value=''; $('rowStartMin').value='';
-  $('rowEndHour').value='';   $('rowEndMin').value='';
+function openAddRowModal() {
+  editingRowId = null; $('rowModalTitle').textContent = 'Add Row';
+  $('rowStartHour').value = ''; $('rowStartMin').value = '';
+  $('rowEndHour').value = ''; $('rowEndMin').value = '';
   resetAmPm('startAmpm'); resetAmPm('endAmpm');
-  $('rowTask').value=''; setColor('#1a1a1a','rowColorPicker');
+  $('rowTask').value = ''; setColor('#1a1a1a', 'rowColorPicker');
   $('rowModal').classList.add('open');
 }
-function openEditRowModal(id){
-  const row=rows.find(r=>r.id===id); if(!row) return;
-  editingRowId=id; $('rowModalTitle').textContent='Edit Row';
-  writeAmPmInputs(row.time_start,'rowStartHour','rowStartMin','startAmpm');
-  writeAmPmInputs(row.time_end,  'rowEndHour',  'rowEndMin',  'endAmpm');
-  $('rowTask').value=row.task;
-  setColor(row.task_color||'#1a1a1a','rowColorPicker');
+function openEditRowModal(id) {
+  const row = rows.find(r => r.id === id); if (!row) return;
+  editingRowId = id; $('rowModalTitle').textContent = 'Edit Row';
+  writeAmPmInputs(row.time_start, 'rowStartHour', 'rowStartMin', 'startAmpm');
+  writeAmPmInputs(row.time_end, 'rowEndHour', 'rowEndMin', 'endAmpm');
+  $('rowTask').value = row.task;
+  setColor(row.task_color || '#1a1a1a', 'rowColorPicker');
   $('rowModal').classList.add('open');
 }
-function closeRowModal(){ $('rowModal').classList.remove('open'); }
+function closeRowModal() { $('rowModal').classList.remove('open'); }
 
-function resetAmPm(toggleId){
-  $(toggleId).querySelectorAll('.ampm-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+function resetAmPm(toggleId) {
+  $(toggleId).querySelectorAll('.ampm-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
 }
 
-function setColor(c, pickerId){
-  if(pickerId==='rowColorPicker') selectedColor=c;
-  else selectedWColor=c;
-  $(pickerId).querySelectorAll('.cp-btn').forEach(b=>b.classList.toggle('active',b.dataset.color===c));
+function setColor(c, pickerId) {
+  if (pickerId === 'rowColorPicker') selectedColor = c;
+  else selectedWColor = c;
+  $(pickerId).querySelectorAll('.cp-btn').forEach(b => b.classList.toggle('active', b.dataset.color === c));
 }
 
-async function saveRow(){
-  const time_start = readAmPmInputs('rowStartHour','rowStartMin','startAmpm');
-  const time_end   = ($('rowEndHour').value && $('rowEndMin').value)
-                   ? readAmPmInputs('rowEndHour','rowEndMin','endAmpm') : '';
+async function saveRow() {
+  const time_start = readAmPmInputs('rowStartHour', 'rowStartMin', 'startAmpm');
+  // ── FIX: use hasEndTime instead of falsy check so "XX:00" is preserved ──
+  const time_end = hasEndTime('rowEndHour', 'rowEndMin')
+    ? readAmPmInputs('rowEndHour', 'rowEndMin', 'endAmpm') : '';
   const task = $('rowTask').value.trim();
-  if(!$('rowStartHour').value||!task){alert('Start time and task are required.');return;}
-  const payload={time_start,time_end,task,task_color:selectedColor};
-  if(editingRowId){
-    await api(`/api/rows/${editingRowId}`,'PUT',payload);
-    const i=rows.findIndex(r=>r.id===editingRowId);
-    if(i!==-1) rows[i]={...rows[i],...payload};
+  if (!$('rowStartHour').value || !task) { alert('Start time and task are required.'); return; }
+  const payload = { time_start, time_end, task, task_color: selectedColor };
+  if (editingRowId) {
+    await api(`/api/rows/${editingRowId}`, 'PUT', payload);
+    const i = rows.findIndex(r => r.id === editingRowId);
+    if (i !== -1) rows[i] = { ...rows[i], ...payload };
   } else {
-    const res=await api('/api/rows','POST',payload);
-    rows.push({id:res.id,...payload});
+    const res = await api('/api/rows', 'POST', payload);
+    rows.push({ id: res.id, ...payload });
   }
   closeRowModal(); renderTable();
 }
 
-async function deleteRow(id){
-  if(!confirm('Delete this row?')) return;
-  await api(`/api/rows/${id}`,'DELETE');
-  rows=rows.filter(r=>r.id!==id); renderTable();
+async function deleteRow(id) {
+  if (!confirm('Delete this row?')) return;
+  await api(`/api/rows/${id}`, 'DELETE');
+  rows = rows.filter(r => r.id !== id); renderTable();
 }
 
 /* ══════════════════════════════════════════════
    STICKY NOTES
 ══════════════════════════════════════════════ */
-function renderNotes(){
-  $('notesLeft').innerHTML=''; $('notesRight').innerHTML='';
+function renderNotes() {
+  $('notesLeft').innerHTML = ''; $('notesRight').innerHTML = '';
   notes.forEach(appendNote);
 }
-function appendNote(note){
-  const zone = note.position==='left' ? $('notesLeft') : $('notesRight');
-  const div=document.createElement('div');
-  div.className='sticky-note'; div.dataset.id=note.id;
-  div.innerHTML=`
+function appendNote(note) {
+  const zone = note.position === 'left' ? $('notesLeft') : $('notesRight');
+  const div = document.createElement('div');
+  div.className = 'sticky-note'; div.dataset.id = note.id;
+  div.innerHTML = `
     <button class="note-dots" data-id="${note.id}">⋮</button>
     <div class="note-menu" id="noteMenu-${note.id}">
       <button data-action="editNote"   data-id="${note.id}">✏️ Edit</button>
@@ -168,292 +173,416 @@ function appendNote(note){
     <div class="note-text">${escHtml(note.content)}</div>`;
   zone.appendChild(div);
 }
-function openNoteModal(id=null){
-  editingNoteId=id;
-  if(id){ const n=notes.find(n=>n.id===id); $('noteText').value=n?n.content:''; $('noteModalTitle').textContent='Edit Note'; }
-  else  { $('noteText').value=''; $('noteModalTitle').textContent='New Sticky Note'; }
+function openNoteModal(id = null) {
+  editingNoteId = id;
+  if (id) { const n = notes.find(n => n.id === id); $('noteText').value = n ? n.content : ''; $('noteModalTitle').textContent = 'Edit Note'; }
+  else { $('noteText').value = ''; $('noteModalTitle').textContent = 'New Sticky Note'; }
   $('noteModal').classList.add('open');
 }
-function closeNoteModal(){ $('noteModal').classList.remove('open'); }
-async function saveNote(){
-  const content=$('noteText').value.trim(); if(!content) return;
-  if(editingNoteId){
-    await api(`/api/notes/${editingNoteId}`,'PUT',{content});
-    const i=notes.findIndex(n=>n.id===editingNoteId); if(i!==-1) notes[i].content=content;
+function closeNoteModal() { $('noteModal').classList.remove('open'); }
+async function saveNote() {
+  const content = $('noteText').value.trim(); if (!content) return;
+  if (editingNoteId) {
+    await api(`/api/notes/${editingNoteId}`, 'PUT', { content });
+    const i = notes.findIndex(n => n.id === editingNoteId); if (i !== -1) notes[i].content = content;
   } else {
-    const res=await api('/api/notes','POST',{content});
-    if(!res.ok){alert(res.error||'Could not add note.');return;}
-    notes.push({id:res.id,content,position:res.position});
+    const res = await api('/api/notes', 'POST', { content });
+    if (!res.ok) { alert(res.error || 'Could not add note.'); return; }
+    notes.push({ id: res.id, content, position: res.position });
   }
   closeNoteModal(); renderNotes();
 }
-async function deleteNote(id){
-  if(!confirm('Delete this note?')) return;
-  await api(`/api/notes/${id}`,'DELETE');
-  notes=notes.filter(n=>n.id!==id); renderNotes();
+async function deleteNote(id) {
+  if (!confirm('Delete this note?')) return;
+  await api(`/api/notes/${id}`, 'DELETE');
+  notes = notes.filter(n => n.id !== id); renderNotes();
 }
 
 /* ══════════════════════════════════════════════
    TO-DO
 ══════════════════════════════════════════════ */
-function openTodoWindow(){ todoDraft=todos.map(t=>({...t})); renderTodos(); $('todoWindow').classList.add('open'); }
-function closeTodoWindow(){ $('todoWindow').classList.remove('open'); }
-function renderTodos(){
-  const body=$('todoBody'); body.innerHTML='';
-  todoDraft.forEach((t,i)=>{
-    const row=document.createElement('div'); row.className='todo-item';
-    row.innerHTML=`
-      <input type="checkbox" class="todo-cb" data-idx="${i}" ${t.done?'checked':''}>
-      <input type="text" class="todo-text ${t.done?'done':''}" data-idx="${i}" value="${escHtml(t.content)}">
+function openTodoWindow() { todoDraft = todos.map(t => ({ ...t })); renderTodos(); $('todoWindow').classList.add('open'); }
+function closeTodoWindow() { $('todoWindow').classList.remove('open'); }
+function renderTodos() {
+  const body = $('todoBody'); body.innerHTML = '';
+  todoDraft.forEach((t, i) => {
+    const row = document.createElement('div'); row.className = 'todo-item';
+    row.innerHTML = `
+      <input type="checkbox" class="todo-cb" data-idx="${i}" ${t.done ? 'checked' : ''}>
+      <input type="text" class="todo-text ${t.done ? 'done' : ''}" data-idx="${i}" value="${escHtml(t.content)}">
       <button class="todo-del" data-idx="${i}">✕</button>`;
     body.appendChild(row);
   });
 }
-async function saveTodos(){
-  const existing=todos.map(t=>t.id);
-  for(const t of todoDraft){
-    if(t.id&&existing.includes(t.id)) await api(`/api/todos/${t.id}`,'PUT',{content:t.content,done:t.done?1:0});
-    else if(!t.id){ const r=await api('/api/todos','POST',{content:t.content}); t.id=r.id; }
+async function saveTodos() {
+  const existing = todos.map(t => t.id);
+  for (const t of todoDraft) {
+    if (t.id && existing.includes(t.id)) await api(`/api/todos/${t.id}`, 'PUT', { content: t.content, done: t.done ? 1 : 0 });
+    else if (!t.id) { const r = await api('/api/todos', 'POST', { content: t.content }); t.id = r.id; }
   }
-  const draftIds=todoDraft.filter(t=>t.id).map(t=>t.id);
-  for(const t of todos){ if(!draftIds.includes(t.id)) await api(`/api/todos/${t.id}`,'DELETE'); }
-  todos=[...todoDraft]; closeTodoWindow();
+  const draftIds = todoDraft.filter(t => t.id).map(t => t.id);
+  for (const t of todos) { if (!draftIds.includes(t.id)) await api(`/api/todos/${t.id}`, 'DELETE'); }
+  todos = [...todoDraft]; closeTodoWindow();
 }
 
 /* ══════════════════════════════════════════════
    WEEKLY PLANNER
 ══════════════════════════════════════════════ */
-const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-function renderWeekly(){
-  const body=$('weeklyBody'); body.innerHTML='';
-  DAYS.forEach(day=>{
-    const col=document.createElement('div'); col.className='weekly-col';
-    const tasks=weeklyTasks.filter(t=>t.day===day).sort((a,b)=>tVal(a.time_start)-tVal(b.time_start));
-    col.innerHTML=`<div class="weekly-day-header">${day}</div>`;
-    const taskArea=document.createElement('div'); taskArea.className='weekly-tasks';
-    tasks.forEach(t=>{
-      const ts = t.time_end ? `${fmt24(t.time_start)}–${fmt24(t.time_end)}` : fmt24(t.time_start);
-      const card=document.createElement('div'); card.className='weekly-task-card';
-      card.style.borderLeftColor=t.task_color||'var(--gold)';
-      card.innerHTML=`
+function renderWeekly() {
+  const body = $('weeklyBody'); body.innerHTML = '';
+  DAYS.forEach(day => {
+    const col = document.createElement('div'); col.className = 'weekly-col';
+    const tasks = weeklyTasks.filter(t => t.day === day).sort((a, b) => tVal(a.time_start) - tVal(b.time_start));
+    col.innerHTML = `<div class="weekly-day-header">${day}</div>`;
+    const taskArea = document.createElement('div'); taskArea.className = 'weekly-tasks';
+    tasks.forEach(t => {
+      // ── FIX: same non-empty check for weekly time_end ──
+      const ts = (t.time_end && t.time_end.trim())
+        ? `${fmt24(t.time_start)} – ${fmt24(t.time_end)}`
+        : fmt24(t.time_start);
+      const card = document.createElement('div'); card.className = 'weekly-task-card';
+      card.style.borderLeftColor = t.task_color || 'var(--gold)';
+      card.innerHTML = `
         <button class="weekly-task-dots" data-id="${t.id}">⋮</button>
         <div class="weekly-task-menu" id="wMenu-${t.id}">
           <button data-action="editW"   data-id="${t.id}">✏️ Edit</button>
           <button data-action="deleteW" data-id="${t.id}" class="danger">🗑 Delete</button>
         </div>
         <span class="weekly-task-time">${escHtml(ts)}</span>
-        <span class="weekly-task-name" style="color:${t.task_color||'#1a1a1a'}">${escHtml(t.task)}</span>`;
+        <span class="weekly-task-name" style="color:${t.task_color || '#1a1a1a'}">${escHtml(t.task)}</span>`;
       taskArea.appendChild(card);
     });
-    const addBtn=document.createElement('button'); addBtn.className='weekly-add-btn';
-    addBtn.textContent='＋ Add'; addBtn.dataset.day=day;
+    const addBtn = document.createElement('button'); addBtn.className = 'weekly-add-btn';
+    addBtn.textContent = '＋ Add'; addBtn.dataset.day = day;
     col.appendChild(taskArea); col.appendChild(addBtn);
     body.appendChild(col);
   });
 }
 
-function openWTaskModal(day, id=null){
-  editingWTaskId=id; $('wTaskDay').value=day;
-  if(id){
-    const t=weeklyTasks.find(t=>t.id===id); if(!t) return;
-    $('wTaskModalTitle').textContent='Edit Task';
-    writeAmPmInputs(t.time_start,'wStartHour','wStartMin','wStartAmpm');
-    writeAmPmInputs(t.time_end,  'wEndHour',  'wEndMin',  'wEndAmpm');
-    $('wTaskText').value=t.task;
-    setColor(t.task_color||'#1a1a1a','wColorPicker');
+function openWTaskModal(day, id = null) {
+  editingWTaskId = id; $('wTaskDay').value = day;
+  if (id) {
+    const t = weeklyTasks.find(t => t.id === id); if (!t) return;
+    $('wTaskModalTitle').textContent = 'Edit Task';
+    writeAmPmInputs(t.time_start, 'wStartHour', 'wStartMin', 'wStartAmpm');
+    writeAmPmInputs(t.time_end, 'wEndHour', 'wEndMin', 'wEndAmpm');
+    $('wTaskText').value = t.task;
+    setColor(t.task_color || '#1a1a1a', 'wColorPicker');
   } else {
-    $('wTaskModalTitle').textContent=`Add Task — ${day}`;
-    $('wStartHour').value=''; $('wStartMin').value='';
-    $('wEndHour').value='';   $('wEndMin').value='';
+    $('wTaskModalTitle').textContent = `Add Task — ${day}`;
+    $('wStartHour').value = ''; $('wStartMin').value = '';
+    $('wEndHour').value = ''; $('wEndMin').value = '';
     resetAmPm('wStartAmpm'); resetAmPm('wEndAmpm');
-    $('wTaskText').value=''; setColor('#1a1a1a','wColorPicker');
+    $('wTaskText').value = ''; setColor('#1a1a1a', 'wColorPicker');
   }
   $('wTaskModal').classList.add('open');
 }
-function closeWTaskModal(){ $('wTaskModal').classList.remove('open'); }
+function closeWTaskModal() { $('wTaskModal').classList.remove('open'); }
 
-async function saveWTask(){
-  const day=$('wTaskDay').value;
-  const time_start=readAmPmInputs('wStartHour','wStartMin','wStartAmpm');
-  const time_end=($('wEndHour').value&&$('wEndMin').value)?readAmPmInputs('wEndHour','wEndMin','wEndAmpm'):'';
-  const task=$('wTaskText').value.trim();
-  if(!$('wStartHour').value||!task){alert('Start time and task required.');return;}
-  const payload={day,time_start,time_end,task,task_color:selectedWColor};
-  if(editingWTaskId){
-    await api(`/api/weekly/${editingWTaskId}`,'PUT',payload);
-    const i=weeklyTasks.findIndex(t=>t.id===editingWTaskId);
-    if(i!==-1) weeklyTasks[i]={...weeklyTasks[i],...payload};
+async function saveWTask() {
+  const day = $('wTaskDay').value;
+  const time_start = readAmPmInputs('wStartHour', 'wStartMin', 'wStartAmpm');
+  // ── FIX: use hasEndTime for weekly too ──
+  const time_end = hasEndTime('wEndHour', 'wEndMin')
+    ? readAmPmInputs('wEndHour', 'wEndMin', 'wEndAmpm') : '';
+  const task = $('wTaskText').value.trim();
+  if (!$('wStartHour').value || !task) { alert('Start time and task required.'); return; }
+  const payload = { day, time_start, time_end, task, task_color: selectedWColor };
+  if (editingWTaskId) {
+    await api(`/api/weekly/${editingWTaskId}`, 'PUT', payload);
+    const i = weeklyTasks.findIndex(t => t.id === editingWTaskId);
+    if (i !== -1) weeklyTasks[i] = { ...weeklyTasks[i], ...payload };
   } else {
-    const res=await api('/api/weekly','POST',payload);
-    weeklyTasks.push({id:res.id,...payload});
+    const res = await api('/api/weekly', 'POST', payload);
+    weeklyTasks.push({ id: res.id, ...payload });
   }
   closeWTaskModal(); renderWeekly();
 }
-async function deleteWTask(id){
-  if(!confirm('Delete this task?')) return;
-  await api(`/api/weekly/${id}`,'DELETE');
-  weeklyTasks=weeklyTasks.filter(t=>t.id!==id); renderWeekly();
+async function deleteWTask(id) {
+  if (!confirm('Delete this task?')) return;
+  await api(`/api/weekly/${id}`, 'DELETE');
+  weeklyTasks = weeklyTasks.filter(t => t.id !== id); renderWeekly();
+}
+
+/* ══════════════════════════════════════════════
+   PDF DOWNLOAD
+══════════════════════════════════════════════ */
+function downloadDailyPDF() {
+  const heading = $('ttHeading').textContent.trim() || 'My Daily Timetable';
+  const subtext = $('ttSubtext').textContent.trim();
+  const sorted = [...rows].sort((a, b) => tVal(a.time_start) - tVal(b.time_start));
+
+  const rowsHtml = sorted.map(r => {
+    const ts = (r.time_end && r.time_end.trim())
+      ? `${fmt24(r.time_start)} – ${fmt24(r.time_end)}`
+      : fmt24(r.time_start);
+    return `<tr>
+      <td style="padding:9px 14px;font-weight:700;white-space:nowrap;border-bottom:1px solid #ece0cc;">${escHtml(ts)}</td>
+      <td style="padding:9px 14px;font-weight:600;color:${r.task_color};border-left:3px solid ${r.task_color};border-bottom:1px solid #ece0cc;">${escHtml(r.task)}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Lato:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    body{font-family:'Lato',sans-serif;background:#faf6ef;margin:0;padding:30px;}
+    h1{font-family:'Playfair Display',serif;font-size:28px;font-weight:900;color:#2d2d2d;letter-spacing:2px;text-align:center;margin-bottom:4px;}
+    p{text-align:center;color:#a07850;font-size:13px;margin-bottom:22px;}
+    table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08);}
+    thead tr{background:linear-gradient(135deg,#2d2d2d 55%,#4a3728);}
+    thead th{color:#f5e6c8;font-family:'Playfair Display',serif;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;padding:12px 14px;text-align:left;}
+    @media print{body{padding:10px;}@page{margin:1cm;}}
+  </style></head><body>
+  <h1>${escHtml(heading)}</h1>
+  ${subtext ? `<p>${escHtml(subtext)}</p>` : ''}
+  <table><thead><tr><th>⏰ Time</th><th>📌 Task</th></tr></thead>
+  <tbody>${rowsHtml}</tbody></table>
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`;
+
+  openPrintWindow(html);
+}
+
+function downloadWeeklyPDF() {
+  const colsHtml = DAYS.map(day => {
+    const tasks = weeklyTasks.filter(t => t.day === day).sort((a, b) => tVal(a.time_start) - tVal(b.time_start));
+    const cardsHtml = tasks.map(t => {
+      const ts = (t.time_end && t.time_end.trim())
+        ? `${fmt24(t.time_start)} – ${fmt24(t.time_end)}`
+        : fmt24(t.time_start);
+      return `<div style="background:#faf6ef;border-radius:5px;padding:6px 8px;margin-bottom:5px;border-left:3px solid ${t.task_color || '#c8975a'};">
+        <div style="font-size:10px;font-weight:700;color:#1a1a1a;">${escHtml(ts)}</div>
+        <div style="font-size:11px;font-weight:600;color:${t.task_color || '#1a1a1a'};">${escHtml(t.task)}</div>
+      </div>`;
+    }).join('');
+    return `<div style="flex:1;min-width:100px;border-right:1px solid #ece0cc;padding:0;">
+      <div style="background:#faf6ef;border-bottom:2px solid #c8975a;padding:8px;text-align:center;font-family:'Playfair Display',serif;font-size:12px;font-weight:700;color:#4a3728;">${day}</div>
+      <div style="padding:6px;">${cardsHtml || '<div style="color:#ccc;font-size:11px;text-align:center;padding:10px;">—</div>'}</div>
+    </div>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Lato:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    body{font-family:'Lato',sans-serif;background:#fff;margin:0;padding:20px;}
+    h1{font-family:'Playfair Display',serif;font-size:22px;font-weight:900;color:#2d2d2d;text-align:center;margin-bottom:16px;letter-spacing:2px;}
+    @media print{body{padding:5px;}@page{margin:.5cm;size:landscape;}}
+  </style></head><body>
+  <h1>📅 Weekly Planner</h1>
+  <div style="display:flex;border:1px solid #ece0cc;border-radius:10px;overflow:hidden;">${colsHtml}</div>
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`;
+
+  openPrintWindow(html);
+}
+
+function openPrintWindow(html) {
+  const w = window.open('', '_blank', 'width=900,height=650');
+  if (!w) { alert('Please allow pop-ups for PDF download.'); return; }
+  w.document.write(html);
+  w.document.close();
+}
+
+/* ══════════════════════════════════════════════
+   DELETE ACCOUNT
+══════════════════════════════════════════════ */
+function openDeleteAccountModal() {
+  $('deleteEmail').value = '';
+  $('deletePassword').value = '';
+  $('deleteError').textContent = '';
+  $('deleteModal').classList.add('open');
+  $('dotsMenu').classList.remove('open');
+}
+function closeDeleteAccountModal() {
+  $('deleteModal').classList.remove('open');
+}
+async function confirmDeleteAccount() {
+  const email = $('deleteEmail').value.trim().toLowerCase();
+  const password = $('deletePassword').value;
+  $('deleteError').textContent = '';
+  if (!email || !password) {
+    $('deleteError').textContent = 'Please enter both email and password.';
+    return;
+  }
+  const res = await api('/api/delete-account', 'POST', { email, password });
+  if (res.ok) {
+    alert('Your account has been permanently deleted.');
+    window.location.href = '/login';
+  } else {
+    $('deleteError').textContent = res.error || 'Deletion failed. Please try again.';
+  }
 }
 
 /* ══════════════════════════════════════════════
    SETTINGS
 ══════════════════════════════════════════════ */
-async function applyTheme(theme){
-  $('appBody').className=`theme-${theme}`; settings.bg_theme=theme;
-  await api('/api/settings','POST',{bg_theme:theme});
+async function applyTheme(theme) {
+  $('appBody').className = `theme-${theme}`; settings.bg_theme = theme;
+  await api('/api/settings', 'POST', { bg_theme: theme });
   $('dotsMenu').classList.remove('open');
 }
 
 /* ══════════════════════════════════════════════
    EVENT BINDING
 ══════════════════════════════════════════════ */
-function bindEvents(){
-
+function bindEvents() {
   /* 3-dot menu */
-  $('btnDots').addEventListener('click',e=>{e.stopPropagation();$('dotsMenu').classList.toggle('open');});
-  document.querySelectorAll('.theme-option').forEach(b=>b.addEventListener('click',()=>applyTheme(b.dataset.theme)));
+  $('btnDots').addEventListener('click', e => { e.stopPropagation(); $('dotsMenu').classList.toggle('open'); });
+  document.querySelectorAll('.theme-option').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme)));
 
   /* Toolbar */
-  $('btnStickyNote').addEventListener('click',()=>openNoteModal(null));
-  $('btnTodo').addEventListener('click',openTodoWindow);
-  $('btnWeekly').addEventListener('click',()=>{ renderWeekly(); $('weeklyModal').classList.add('open'); });
+  $('btnStickyNote').addEventListener('click', () => openNoteModal(null));
+  $('btnTodo').addEventListener('click', openTodoWindow);
+  $('btnWeekly').addEventListener('click', () => { renderWeekly(); $('weeklyModal').classList.add('open'); });
 
   /* Add row */
-  $('btnAddRow').addEventListener('click',openAddRowModal);
+  $('btnAddRow').addEventListener('click', openAddRowModal);
 
   /* Row modal */
-  $('rowModalCancel').addEventListener('click',closeRowModal);
-  $('rowModalSave').addEventListener('click',saveRow);
-  $('rowTask').addEventListener('keydown',e=>{if(e.key==='Enter') saveRow();});
-  $('rowColorPicker').querySelectorAll('.cp-btn').forEach(b=>b.addEventListener('click',()=>setColor(b.dataset.color,'rowColorPicker')));
+  $('rowModalCancel').addEventListener('click', closeRowModal);
+  $('rowModalSave').addEventListener('click', saveRow);
+  $('rowTask').addEventListener('keydown', e => { if (e.key === 'Enter') saveRow(); });
+  $('rowColorPicker').querySelectorAll('.cp-btn').forEach(b => b.addEventListener('click', () => setColor(b.dataset.color, 'rowColorPicker')));
   bindAmPm('startAmpm'); bindAmPm('endAmpm');
 
   /* Table row actions */
-  $('ttBody').addEventListener('click',e=>{
-    const dots=e.target.closest('.row-dots-btn');
-    const act=e.target.closest('[data-action]');
-    if(dots){
+  $('ttBody').addEventListener('click', e => {
+    const dots = e.target.closest('.row-dots-btn');
+    const act = e.target.closest('[data-action]');
+    if (dots) {
       e.stopPropagation();
-      const id=Number(dots.dataset.id);
+      const id = Number(dots.dataset.id);
       closeAllMenus('.row-menu');
       $(`rowMenu-${id}`).classList.toggle('open');
       return;
     }
-    if(act){
-      const id=Number(act.dataset.id);
+    if (act) {
+      const id = Number(act.dataset.id);
       closeAllMenus('.row-menu');
-      if(act.dataset.action==='edit')   openEditRowModal(id);
-      if(act.dataset.action==='delete') deleteRow(id);
+      if (act.dataset.action === 'edit') openEditRowModal(id);
+      if (act.dataset.action === 'delete') deleteRow(id);
     }
   });
 
   /* Note modal */
-  $('noteModalCancel').addEventListener('click',closeNoteModal);
-  $('noteModalOk').addEventListener('click',saveNote);
+  $('noteModalCancel').addEventListener('click', closeNoteModal);
+  $('noteModalOk').addEventListener('click', saveNote);
 
   /* Note zones */
-  ['notesLeft','notesRight'].forEach(zid=>{
-    $(zid).addEventListener('click',e=>{
-      const dots=e.target.closest('.note-dots');
-      const act=e.target.closest('[data-action]');
-      if(dots){
+  ['notesLeft', 'notesRight'].forEach(zid => {
+    $(zid).addEventListener('click', e => {
+      const dots = e.target.closest('.note-dots');
+      const act = e.target.closest('[data-action]');
+      if (dots) {
         e.stopPropagation();
-        const id=Number(dots.dataset.id);
+        const id = Number(dots.dataset.id);
         closeAllMenus('.note-menu');
         $(`noteMenu-${id}`).classList.toggle('open');
         return;
       }
-      if(act){
-        const id=Number(act.dataset.id);
+      if (act) {
+        const id = Number(act.dataset.id);
         closeAllMenus('.note-menu');
-        if(act.dataset.action==='editNote')   openNoteModal(id);
-        if(act.dataset.action==='deleteNote') deleteNote(id);
+        if (act.dataset.action === 'editNote') openNoteModal(id);
+        if (act.dataset.action === 'deleteNote') deleteNote(id);
       }
     });
   });
 
   /* To-do */
-  $('todoClose').addEventListener('click',closeTodoWindow);
-  $('todoCancelBtn').addEventListener('click',closeTodoWindow);
-  $('todoSaveBtn').addEventListener('click',saveTodos);
-  $('todoAddBtn').addEventListener('click',()=>{
-    const v=$('todoInput').value.trim(); if(!v) return;
-    todoDraft.push({content:v,done:0}); $('todoInput').value=''; renderTodos();
+  $('todoClose').addEventListener('click', closeTodoWindow);
+  $('todoCancelBtn').addEventListener('click', closeTodoWindow);
+  $('todoSaveBtn').addEventListener('click', saveTodos);
+  $('todoAddBtn').addEventListener('click', () => {
+    const v = $('todoInput').value.trim(); if (!v) return;
+    todoDraft.push({ content: v, done: 0 }); $('todoInput').value = ''; renderTodos();
   });
-  $('todoInput').addEventListener('keydown',e=>{if(e.key==='Enter') $('todoAddBtn').click();});
-  $('todoBody').addEventListener('change',e=>{
-    const cb=e.target.closest('.todo-cb');
-    if(cb){ const i=Number(cb.dataset.idx); todoDraft[i].done=cb.checked?1:0; renderTodos(); }
+  $('todoInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('todoAddBtn').click(); });
+  $('todoBody').addEventListener('change', e => {
+    const cb = e.target.closest('.todo-cb');
+    if (cb) { const i = Number(cb.dataset.idx); todoDraft[i].done = cb.checked ? 1 : 0; renderTodos(); }
   });
-  $('todoBody').addEventListener('input',e=>{
-    const inp=e.target.closest('.todo-text');
-    if(inp) todoDraft[Number(inp.dataset.idx)].content=inp.value;
+  $('todoBody').addEventListener('input', e => {
+    const inp = e.target.closest('.todo-text');
+    if (inp) todoDraft[Number(inp.dataset.idx)].content = inp.value;
   });
-  $('todoBody').addEventListener('click',e=>{
-    const btn=e.target.closest('.todo-del');
-    if(btn){ todoDraft.splice(Number(btn.dataset.idx),1); renderTodos(); }
+  $('todoBody').addEventListener('click', e => {
+    const btn = e.target.closest('.todo-del');
+    if (btn) { todoDraft.splice(Number(btn.dataset.idx), 1); renderTodos(); }
   });
 
   /* Weekly modal */
-  $('weeklyClose').addEventListener('click',()=>$('weeklyModal').classList.remove('open'));
-  $('weeklyModal').addEventListener('click',e=>{
-    if(e.target===$('weeklyModal')) $('weeklyModal').classList.remove('open');
+  $('weeklyClose').addEventListener('click', () => $('weeklyModal').classList.remove('open'));
+  $('weeklyModal').addEventListener('click', e => {
+    if (e.target === $('weeklyModal')) $('weeklyModal').classList.remove('open');
   });
-  $('weeklyBody').addEventListener('click',e=>{
-    const addBtn=e.target.closest('.weekly-add-btn');
-    const dots=e.target.closest('.weekly-task-dots');
-    const act=e.target.closest('[data-action]');
-    if(addBtn){ openWTaskModal(addBtn.dataset.day); return; }
-    if(dots){
+  $('weeklyBody').addEventListener('click', e => {
+    const addBtn = e.target.closest('.weekly-add-btn');
+    const dots = e.target.closest('.weekly-task-dots');
+    const act = e.target.closest('[data-action]');
+    if (addBtn) { openWTaskModal(addBtn.dataset.day); return; }
+    if (dots) {
       e.stopPropagation();
-      const id=Number(dots.dataset.id);
+      const id = Number(dots.dataset.id);
       closeAllMenus('.weekly-task-menu');
       $(`wMenu-${id}`).classList.toggle('open');
       return;
     }
-    if(act){
-      const id=Number(act.dataset.id);
+    if (act) {
+      const id = Number(act.dataset.id);
       closeAllMenus('.weekly-task-menu');
-      if(act.dataset.action==='editW')   { const t=weeklyTasks.find(t=>t.id===id); if(t) openWTaskModal(t.day,id); }
-      if(act.dataset.action==='deleteW') deleteWTask(id);
+      if (act.dataset.action === 'editW') { const t = weeklyTasks.find(t => t.id === id); if (t) openWTaskModal(t.day, id); }
+      if (act.dataset.action === 'deleteW') deleteWTask(id);
     }
   });
 
   /* Weekly task modal */
-  $('wTaskCancel').addEventListener('click',closeWTaskModal);
-  $('wTaskSave').addEventListener('click',saveWTask);
-  $('wTaskModal').addEventListener('click',e=>{if(e.target===$('wTaskModal')) closeWTaskModal();});
-  $('wColorPicker').querySelectorAll('.cp-btn').forEach(b=>b.addEventListener('click',()=>setColor(b.dataset.color,'wColorPicker')));
+  $('wTaskCancel').addEventListener('click', closeWTaskModal);
+  $('wTaskSave').addEventListener('click', saveWTask);
+  $('wTaskModal').addEventListener('click', e => { if (e.target === $('wTaskModal')) closeWTaskModal(); });
+  $('wColorPicker').querySelectorAll('.cp-btn').forEach(b => b.addEventListener('click', () => setColor(b.dataset.color, 'wColorPicker')));
   bindAmPm('wStartAmpm'); bindAmPm('wEndAmpm');
-  $('wTaskText').addEventListener('keydown',e=>{if(e.key==='Enter') saveWTask();});
+  $('wTaskText').addEventListener('keydown', e => { if (e.key === 'Enter') saveWTask(); });
+
+  /* PDF downloads */
+  $('btnDownloadDaily').addEventListener('click', downloadDailyPDF);
+  $('btnDownloadWeekly').addEventListener('click', downloadWeeklyPDF);
+
+  /* Delete account */
+  $('btnDeleteAccount').addEventListener('click', openDeleteAccountModal);
+  $('deleteModalCancel').addEventListener('click', closeDeleteAccountModal);
+  $('deleteModalConfirm').addEventListener('click', confirmDeleteAccount);
+  $('deleteModal').addEventListener('click', e => { if (e.target === $('deleteModal')) closeDeleteAccountModal(); });
+  $('deletePassword').addEventListener('keydown', e => { if (e.key === 'Enter') confirmDeleteAccount(); });
 
   /* Heading / subtext autosave */
-  $('ttHeading').addEventListener('blur',()=>api('/api/settings','POST',{heading:$('ttHeading').textContent.trim()}));
-  $('ttSubtext').addEventListener('blur', ()=>api('/api/settings','POST',{subtext:$('ttSubtext').textContent.trim()}));
+  $('ttHeading').addEventListener('blur', () => api('/api/settings', 'POST', { heading: $('ttHeading').textContent.trim() }));
+  $('ttSubtext').addEventListener('blur', () => api('/api/settings', 'POST', { subtext: $('ttSubtext').textContent.trim() }));
 
   /* Close menus on outside click */
-  document.addEventListener('click',()=>{
+  document.addEventListener('click', () => {
     closeAllMenus('.row-menu'); closeAllMenus('.note-menu'); closeAllMenus('.weekly-task-menu');
     $('dotsMenu').classList.remove('open');
   });
 
   /* Close modals on overlay */
-  $('rowModal').addEventListener('click',e=>{if(e.target===$('rowModal')) closeRowModal();});
-  $('noteModal').addEventListener('click',e=>{if(e.target===$('noteModal')) closeNoteModal();});
+  $('rowModal').addEventListener('click', e => { if (e.target === $('rowModal')) closeRowModal(); });
+  $('noteModal').addEventListener('click', e => { if (e.target === $('noteModal')) closeNoteModal(); });
 }
 
-function bindAmPm(toggleId){
-  $(toggleId).querySelectorAll('.ampm-btn').forEach(b=>{
-    b.addEventListener('click',()=>{
-      $(toggleId).querySelectorAll('.ampm-btn').forEach(x=>x.classList.remove('active'));
+function bindAmPm(toggleId) {
+  $(toggleId).querySelectorAll('.ampm-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      $(toggleId).querySelectorAll('.ampm-btn').forEach(x => x.classList.remove('active'));
       b.classList.add('active');
     });
   });
 }
 
-function closeAllMenus(sel){
-  document.querySelectorAll(sel+'.open').forEach(m=>m.classList.remove('open'));
+function closeAllMenus(sel) {
+  document.querySelectorAll(sel + '.open').forEach(m => m.classList.remove('open'));
 }
 
 /* Boot */

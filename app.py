@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, make_response
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
@@ -6,8 +6,20 @@ import os
 import secrets
 
 app = Flask(__name__)
-# random key every restart (fine for now)
-app.secret_key = os.environ.get("SECRET_KEY")
+
+# Use env var SECRET_KEY; generate a stable fallback stored in a file so
+# sessions survive restarts even without an env var set.
+_key_file = os.path.join(os.path.dirname(__file__), '.secret_key')
+if os.environ.get("SECRET_KEY"):
+    app.secret_key = os.environ["SECRET_KEY"]
+elif os.path.exists(_key_file):
+    with open(_key_file) as f:
+        app.secret_key = f.read().strip()
+else:
+    _generated = secrets.token_hex(32)
+    with open(_key_file, 'w') as f:
+        f.write(_generated)
+    app.secret_key = _generated
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data.db')
 
@@ -33,12 +45,12 @@ def load_user(user_id):
     conn.close()
     return User(row['id'], row['email']) if row else None
 
+
 # ── DB helpers ────────────────────────────────────────────────────────────────
-
-
 def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -104,19 +116,17 @@ def init_db():
 
 
 def default_settings(user_id):
-    """Insert default settings for a brand-new user."""
     conn = get_db()
-    defaults = {'heading': 'My Daily Timetable',
-                'subtext': '', 'bg_theme': 'white'}
+    defaults = {'heading': 'My Daily Timetable', 'subtext': '', 'bg_theme': 'white'}
     for k, v in defaults.items():
         conn.execute(
-            'INSERT OR IGNORE INTO settings (user_id,key,value) VALUES (?,?,?)', (user_id, k, v))
+            'INSERT OR IGNORE INTO settings (user_id,key,value) VALUES (?,?,?)',
+            (user_id, k, v))
     conn.commit()
     conn.close()
 
+
 # ── Auth routes ───────────────────────────────────────────────────────────────
-
-
 @app.route('/')
 def index():
     if current_user.is_authenticated:
@@ -133,8 +143,7 @@ def login():
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         conn = get_db()
-        row = conn.execute(
-            'SELECT * FROM users WHERE email=?', (email,)).fetchone()
+        row = conn.execute('SELECT * FROM users WHERE email=?', (email,)).fetchone()
         conn.close()
         if row and check_password_hash(row['password_hash'], password):
             login_user(User(row['id'], row['email']), remember=True)
@@ -161,8 +170,7 @@ def register():
             error = 'Passwords do not match.'
         else:
             conn = get_db()
-            existing = conn.execute(
-                'SELECT id FROM users WHERE email=?', (email,)).fetchone()
+            existing = conn.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
             if existing:
                 error = 'An account with this email already exists.'
                 conn.close()
@@ -185,17 +193,40 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
+
+# ── Delete account ────────────────────────────────────────────────────────────
+@app.route('/api/delete-account', methods=['POST'])
+@login_required
+def delete_account():
+    data = request.json or {}
+    email = data.get('email', '').strip().lower()
+    password = data.get('password', '')
+
+    if email != current_user.email:
+        return jsonify({'ok': False, 'error': 'Email does not match your account.'}), 400
+
+    conn = get_db()
+    row = conn.execute('SELECT * FROM users WHERE id=?', (current_user.id,)).fetchone()
+    if not row or not check_password_hash(row['password_hash'], password):
+        conn.close()
+        return jsonify({'ok': False, 'error': 'Incorrect password.'}), 400
+
+    # CASCADE delete handles all related data
+    conn.execute('DELETE FROM users WHERE id=?', (current_user.id,))
+    conn.commit()
+    conn.close()
+    logout_user()
+    return jsonify({'ok': True})
+
+
 # ── Main app page ─────────────────────────────────────────────────────────────
-
-
 @app.route('/app')
 @login_required
 def app_main():
     return render_template('index.html', email=current_user.email)
 
+
 # ── Settings API ──────────────────────────────────────────────────────────────
-
-
 @app.route('/api/settings', methods=['GET'])
 @login_required
 def get_settings():
@@ -209,23 +240,27 @@ def get_settings():
 @app.route('/api/settings', methods=['POST'])
 @login_required
 def save_settings():
+    data = request.json
+    if not isinstance(data, dict):
+        return jsonify({'ok': False}), 400
     conn = get_db()
-    for k, v in request.json.items():
+    for k, v in data.items():
         conn.execute(
-            'INSERT OR REPLACE INTO settings (user_id,key,value) VALUES (?,?,?)', (current_user.id, k, v))
+            'INSERT OR REPLACE INTO settings (user_id,key,value) VALUES (?,?,?)',
+            (current_user.id, k, v))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
 
+
 # ── Timetable rows API ────────────────────────────────────────────────────────
-
-
 @app.route('/api/rows', methods=['GET'])
 @login_required
 def get_rows():
     conn = get_db()
     rows = conn.execute(
-        'SELECT * FROM timetable_rows WHERE user_id=? ORDER BY time_start', (current_user.id,)).fetchall()
+        'SELECT * FROM timetable_rows WHERE user_id=? ORDER BY time_start',
+        (current_user.id,)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -234,9 +269,13 @@ def get_rows():
 @login_required
 def add_row():
     d = request.json
+    if not d or not d.get('time_start') or not d.get('task'):
+        return jsonify({'ok': False, 'error': 'Missing fields'}), 400
     conn = get_db()
-    cur = conn.execute('INSERT INTO timetable_rows (user_id,time_start,time_end,task,task_color) VALUES (?,?,?,?,?)',
-                       (current_user.id, d['time_start'], d.get('time_end', ''), d['task'], d.get('task_color', '#1a1a1a')))
+    cur = conn.execute(
+        'INSERT INTO timetable_rows (user_id,time_start,time_end,task,task_color) VALUES (?,?,?,?,?)',
+        (current_user.id, d['time_start'], d.get('time_end', ''),
+         d['task'], d.get('task_color', '#1a1a1a')))
     conn.commit()
     rid = cur.lastrowid
     conn.close()
@@ -248,8 +287,10 @@ def add_row():
 def update_row(rid):
     d = request.json
     conn = get_db()
-    conn.execute('UPDATE timetable_rows SET time_start=?,time_end=?,task=?,task_color=? WHERE id=? AND user_id=?',
-                 (d['time_start'], d.get('time_end', ''), d['task'], d.get('task_color', '#1a1a1a'), rid, current_user.id))
+    conn.execute(
+        'UPDATE timetable_rows SET time_start=?,time_end=?,task=?,task_color=? WHERE id=? AND user_id=?',
+        (d['time_start'], d.get('time_end', ''), d['task'],
+         d.get('task_color', '#1a1a1a'), rid, current_user.id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -259,21 +300,20 @@ def update_row(rid):
 @login_required
 def delete_row(rid):
     conn = get_db()
-    conn.execute(
-        'DELETE FROM timetable_rows WHERE id=? AND user_id=?', (rid, current_user.id))
+    conn.execute('DELETE FROM timetable_rows WHERE id=? AND user_id=?',
+                 (rid, current_user.id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
 
+
 # ── Sticky notes API ──────────────────────────────────────────────────────────
-
-
 @app.route('/api/notes', methods=['GET'])
 @login_required
 def get_notes():
     conn = get_db()
-    notes = conn.execute(
-        'SELECT * FROM sticky_notes WHERE user_id=?', (current_user.id,)).fetchall()
+    notes = conn.execute('SELECT * FROM sticky_notes WHERE user_id=?',
+                         (current_user.id,)).fetchall()
     conn.close()
     return jsonify([dict(n) for n in notes])
 
@@ -283,15 +323,22 @@ def get_notes():
 def add_note():
     conn = get_db()
     count = conn.execute(
-        'SELECT COUNT(*) as c FROM sticky_notes WHERE user_id=?', (current_user.id,)).fetchone()['c']
+        'SELECT COUNT(*) as c FROM sticky_notes WHERE user_id=?',
+        (current_user.id,)).fetchone()['c']
     if count >= 8:
         conn.close()
         return jsonify({'ok': False, 'error': 'Maximum 8 sticky notes allowed'}), 400
-    lc = conn.execute("SELECT COUNT(*) as c FROM sticky_notes WHERE user_id=? AND position='left'",
-                      (current_user.id,)).fetchone()['c']
+    lc = conn.execute(
+        "SELECT COUNT(*) as c FROM sticky_notes WHERE user_id=? AND position='left'",
+        (current_user.id,)).fetchone()['c']
     pos = 'left' if lc < 4 else 'right'
-    cur = conn.execute('INSERT INTO sticky_notes (user_id,content,position) VALUES (?,?,?)',
-                       (current_user.id, request.json['content'], pos))
+    content = request.json.get('content', '').strip()
+    if not content:
+        conn.close()
+        return jsonify({'ok': False, 'error': 'Content required'}), 400
+    cur = conn.execute(
+        'INSERT INTO sticky_notes (user_id,content,position) VALUES (?,?,?)',
+        (current_user.id, content, pos))
     conn.commit()
     nid = cur.lastrowid
     conn.close()
@@ -319,15 +366,15 @@ def delete_note(nid):
     conn.close()
     return jsonify({'ok': True})
 
+
 # ── Todos API ─────────────────────────────────────────────────────────────────
-
-
 @app.route('/api/todos', methods=['GET'])
 @login_required
 def get_todos():
     conn = get_db()
     todos = conn.execute(
-        'SELECT * FROM todos WHERE user_id=? ORDER BY sort_order,id', (current_user.id,)).fetchall()
+        'SELECT * FROM todos WHERE user_id=? ORDER BY sort_order,id',
+        (current_user.id,)).fetchall()
     conn.close()
     return jsonify([dict(t) for t in todos])
 
@@ -366,15 +413,15 @@ def delete_todo(tid):
     conn.close()
     return jsonify({'ok': True})
 
+
 # ── Weekly tasks API ──────────────────────────────────────────────────────────
-
-
 @app.route('/api/weekly', methods=['GET'])
 @login_required
 def get_weekly():
     conn = get_db()
     tasks = conn.execute(
-        'SELECT * FROM weekly_tasks WHERE user_id=? ORDER BY day,time_start', (current_user.id,)).fetchall()
+        'SELECT * FROM weekly_tasks WHERE user_id=? ORDER BY day,time_start',
+        (current_user.id,)).fetchall()
     conn.close()
     return jsonify([dict(t) for t in tasks])
 
@@ -384,8 +431,10 @@ def get_weekly():
 def add_weekly():
     d = request.json
     conn = get_db()
-    cur = conn.execute('INSERT INTO weekly_tasks (user_id,day,time_start,time_end,task,task_color) VALUES (?,?,?,?,?,?)',
-                       (current_user.id, d['day'], d['time_start'], d.get('time_end', ''), d['task'], d.get('task_color', '#1a1a1a')))
+    cur = conn.execute(
+        'INSERT INTO weekly_tasks (user_id,day,time_start,time_end,task,task_color) VALUES (?,?,?,?,?,?)',
+        (current_user.id, d['day'], d['time_start'], d.get('time_end', ''),
+         d['task'], d.get('task_color', '#1a1a1a')))
     conn.commit()
     wid = cur.lastrowid
     conn.close()
@@ -397,8 +446,10 @@ def add_weekly():
 def update_weekly(wid):
     d = request.json
     conn = get_db()
-    conn.execute('UPDATE weekly_tasks SET day=?,time_start=?,time_end=?,task=?,task_color=? WHERE id=? AND user_id=?',
-                 (d['day'], d['time_start'], d.get('time_end', ''), d['task'], d.get('task_color', '#1a1a1a'), wid, current_user.id))
+    conn.execute(
+        'UPDATE weekly_tasks SET day=?,time_start=?,time_end=?,task=?,task_color=? WHERE id=? AND user_id=?',
+        (d['day'], d['time_start'], d.get('time_end', ''), d['task'],
+         d.get('task_color', '#1a1a1a'), wid, current_user.id))
     conn.commit()
     conn.close()
     return jsonify({'ok': True})
@@ -416,7 +467,9 @@ def delete_weekly(wid):
 
 
 # ── Boot ──────────────────────────────────────────────────────────────────────
+# init_db is called at module level so gunicorn picks it up too
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     print('\n✅  MyTask Space running → http://127.0.0.1:5000\n')
-app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
