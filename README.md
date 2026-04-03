@@ -67,6 +67,5 @@ mytaskspace/
 - `SECRET_KEY` is loaded from environment variables in production
 
 ---
-y
 📌 Note
 This is a portfolio project. Please do not store sensitive personal information.
