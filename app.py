@@ -117,7 +117,8 @@ def init_db():
 
 def default_settings(user_id):
     conn = get_db()
-    defaults = {'heading': 'My Daily Timetable', 'subtext': '', 'bg_theme': 'white'}
+    defaults = {'heading': 'My Daily Timetable',
+                'subtext': '', 'bg_theme': 'white'}
     for k, v in defaults.items():
         conn.execute(
             'INSERT OR IGNORE INTO settings (user_id,key,value) VALUES (?,?,?)',
@@ -143,7 +144,8 @@ def login():
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         conn = get_db()
-        row = conn.execute('SELECT * FROM users WHERE email=?', (email,)).fetchone()
+        row = conn.execute(
+            'SELECT * FROM users WHERE email=?', (email,)).fetchone()
         conn.close()
         if row and check_password_hash(row['password_hash'], password):
             login_user(User(row['id'], row['email']), remember=True)
@@ -170,7 +172,8 @@ def register():
             error = 'Passwords do not match.'
         else:
             conn = get_db()
-            existing = conn.execute('SELECT id FROM users WHERE email=?', (email,)).fetchone()
+            existing = conn.execute(
+                'SELECT id FROM users WHERE email=?', (email,)).fetchone()
             if existing:
                 error = 'An account with this email already exists.'
                 conn.close()
@@ -206,7 +209,8 @@ def delete_account():
         return jsonify({'ok': False, 'error': 'Email does not match your account.'}), 400
 
     conn = get_db()
-    row = conn.execute('SELECT * FROM users WHERE id=?', (current_user.id,)).fetchone()
+    row = conn.execute('SELECT * FROM users WHERE id=?',
+                       (current_user.id,)).fetchone()
     if not row or not check_password_hash(row['password_hash'], password):
         conn.close()
         return jsonify({'ok': False, 'error': 'Incorrect password.'}), 400
@@ -472,4 +476,5 @@ init_db()
 
 if __name__ == '__main__':
     print('\n✅  MyTask Space running → http://127.0.0.1:5000\n')
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+    app.run(host="0.0.0.0", port=int(
+        os.environ.get("PORT", 5000)), debug=False)
